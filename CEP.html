@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de CEP - ViaCEP</title>
+    <!-- Política de Segurança de Conteúdo -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+ 
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 20px;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .api-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .result-item {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .status-online {
+            color: #198754;
+        }
+        .status-offline {
+            color: #dc3545;
+        }
+        .loading {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h1 class="h4 mb-0">Teste de CEP - ViaCEP</h1>
+                    </div>
+                    <div class="card-body">
+                        <!-- API Status Indicator -->
+                        <div class="api-status">
+                            <div id="apiStatus" class="alert alert-success d-flex align-items-center" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <span>API Online</span>
+                            </div>
+                        </div>
+
+                        <!-- CEP Input Form -->
+                        <form id="cepForm">
+                            <div class="mb-3">
+                                <label for="cepInput" class="form-label">Digite um CEP:</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="cepInput" placeholder="Ex: 01001000" maxlength="8">
+                                    <button class="btn btn-primary" type="submit" id="searchBtn">
+                                        <i class="bi bi-search"></i> Buscar
+                                    </button>
+                                </div>
+                                <div class="form-text">Digite apenas números (8 dígitos)</div>
+                            </div>
+                        </form>
+
+                        <!-- Loading Indicator -->
+                        <div id="loading" class="loading text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-2">Consultando CEP...</p>
+                        </div>
+
+                        <!-- Results -->
+                        <div id="results" class="mt-4" style="display: none;">
+                            <h3 class="h5">Resultado da Consulta:</h3>
+                            <div class="card">
+                                <div class="card-body">
+                                    <div id="resultContent"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error Message -->
+                        <div id="errorAlert" class="alert alert-danger mt-3" style="display: none;" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <span id="errorMessage"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Information -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Informações sobre a API ViaCEP</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>O ViaCEP é um webservice gratuito para consulta de Código de Endereçamento Postal (CEP) do Brasil.</p>
+                        <ul>
+                            <li>Formato do CEP: 8 dígitos (ex: 01001000)</li>
+                            <li>Formato de retorno: JSON ou XML</li>
+                            <li>CEP inválido: retorna código 400 (Bad Request)</li>
+                            <li>CEP válido mas inexistente: retorna objeto com "erro": true</li>
+                        </ul>
+                        <p>Para mais informações, visite: <a href="https://viacep.com.br" target="_blank">viacep.com.br</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="fetch-fix.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const cepForm = document.getElementById('cepForm');
+            const cepInput = document.getElementById('cepInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const resultContent = document.getElementById('resultContent');
+            const errorAlert = document.getElementById('errorAlert');
+            const errorMessage = document.getElementById('errorMessage');
+            const apiStatus = document.getElementById('apiStatus');
+
+            // Monitoramento da API
+            let apiCheckInterval;
+            
+            // Função para verificar o status da API
+            function checkApiStatus() {
+                // Teste com um CEP conhecido
+                fetch('https://viacep.com.br/ws/01001000/json/')
+                    .then(response => {
+                        if (response.ok) {
+                            apiStatus.className = 'alert alert-success d-flex align-items-center';
+                            apiStatus.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i><span>API Online</span>';
+                        } else {
+                            throw new Error('API não respondeu corretamente');
+                        }
+                    })
+                    .catch(error => {
+                        apiStatus.className = 'alert alert-danger d-flex align-items-center';
+                        apiStatus.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i><span>API Offline</span>';
+                        console.error('Erro ao verificar status da API:', error);
+                    });
+            }
+
+            // Iniciar monitoramento da API
+            checkApiStatus();
+            apiCheckInterval = setInterval(checkApiStatus, 60000); // Verificar a cada minuto
+
+            // Validação do CEP
+            function validateCEP(cep) {
+                // Remove qualquer caractere não numérico
+                cep = cep.replace(/\D/g, '');
+                
+                // Verifica se tem 8 dígitos
+                if (cep.length !== 8) {
+                    return false;
+                }
+                
+                // Verifica se são apenas números
+                if (!/^\d+$/.test(cep)) {
+                    return false;
+                }
+                
+                return true;
+            }
+
+            // Formata o CEP para exibição
+            function formatCEP(cep) {
+                return cep.replace(/(\d{5})(\d{3})/, '$1-$2');
+            }
+
+            // Consulta o CEP na API
+            function consultarCEP(cep) {
+                // Mostra o loading
+                loading.style.display = 'block';
+                results.style.display = 'none';
+                errorAlert.style.display = 'none';
+                
+                // Faz a requisição
+                fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Erro na resposta da API');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Verifica se o CEP foi encontrado
+                        if (data.erro) {
+                            showError('CEP não encontrado na base de dados.');
+                        } else {
+                            displayResults(data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao consultar CEP:', error);
+                        showError('Erro ao consultar CEP. Verifique sua conexão ou tente novamente mais tarde.');
+                    })
+                    .finally(() => {
+                        // Esconde o loading
+                        loading.style.display = 'none';
+                    });
+            }
+
+            // Exibe os resultados da consulta
+            function displayResults(data) {
+                resultContent.innerHTML = `
+                    <div class="result-item">
+                        <strong>CEP:</strong> ${formatCEP(data.cep)}
+                    </div>
+                    <div class="result-item">
+                        <strong>Logradouro:</strong> ${data.logradouro}
+                    </div>
+                    <div class="result-item">
+                        <strong>Complemento:</strong> ${data.complemento || 'N/A'}
+                    </div>
+                    <div class="result-item">
+                        <strong>Bairro:</strong> ${data.bairro}
+                    </div>
+                    <div class="result-item">
+                        <strong>Localidade:</strong> ${data.localidade}
+                    </div>
+                    <div class="result-item">
+                        <strong>UF:</strong> ${data.uf}
+                    </div>
+                    <div class="result-item">
+                        <strong>Estado:</strong> ${data.estado}
+                    </div>
+                    <div class="result-item">
+                        <strong>Região:</strong> ${data.regiao}
+                    </div>
+                    <div class="result-item">
+                        <strong>IBGE:</strong> ${data.ibge}
+                    </div>
+                    <div class="result-item">
+                        <strong>GIA:</strong> ${data.gia || 'N/A'}
+                    </div>
+                    <div class="result-item">
+                        <strong>DDD:</strong> ${data.ddd}
+                    </div>
+                    <div class="result-item">
+                        <strong>SIAFI:</strong> ${data.siafi}
+                    </div>
+                `;
+                
+                results.style.display = 'block';
+            }
+
+            // Exibe mensagem de erro
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorAlert.style.display = 'block';
+            }
+
+            // Event listener para o formulário
+            cepForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const cep = cepInput.value.trim();
+                
+                // Valida o CEP
+                if (!validateCEP(cep)) {
+                    showError('CEP inválido. Digite um CEP com 8 dígitos numéricos.');
+                    return;
+                }
+                
+                // Consulta o CEP
+                consultarCEP(cep);
+            });
+
+            // Formatação automática do CEP (opcional)
+            cepInput.addEventListener('input', function() {
+                // Remove qualquer caractere não numérico
+                this.value = this.value.replace(/\D/g, '');
+                
+                // Limita a 8 caracteres
+                if (this.value.length > 8) {
+                    this.value = this.value.substring(0, 8);
+                }
+            });
+        });
+    </script>
+      
+    
+   
+</body>
+</html>

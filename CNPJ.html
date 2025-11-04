@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de CNPJ - API Pública</title>
+    <!-- Política de Segurança de Conteúdo -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 20px;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .api-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .result-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .result-section:last-child {
+            border-bottom: none;
+        }
+        .status-online {
+            color: #198754;
+        }
+        .status-offline {
+            color: #dc3545;
+        }
+        .loading {
+            display: none;
+        }
+        .member-card {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .badge-status {
+            font-size: 0.8em;
+        }
+        .tab-content {
+            padding: 20px 0;
+        }
+        .nav-tabs .nav-link.active {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h1 class="h4 mb-0">Consulta de CNPJ - API Pública</h1>
+                    </div>
+                    <div class="card-body">
+                        <!-- API Status Indicator -->
+                        <div class="api-status">
+                            <div id="apiStatus" class="alert alert-success d-flex align-items-center" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <span>API Online</span>
+                            </div>
+                        </div>
+
+                        <!-- CNPJ Input Form -->
+                        <form id="cnpjForm">
+                            <div class="mb-4">
+                                <label for="cnpjInput" class="form-label">Digite um CNPJ:</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="cnpjInput" placeholder="Ex: 07526557011659" maxlength="14">
+                                    <button class="btn btn-primary" type="submit" id="searchBtn">
+                                        <i class="bi bi-search"></i> Consultar
+                                    </button>
+                                </div>
+                                <div class="form-text">Digite apenas números (14 dígitos)</div>
+                            </div>
+                        </form>
+
+                        <!-- Loading Indicator -->
+                        <div id="loading" class="loading text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-2">Consultando CNPJ...</p>
+                        </div>
+
+                        <!-- Results -->
+                        <div id="results" class="mt-4" style="display: none;">
+                            <h3 class="h5 mb-3">Resultado da Consulta:</h3>
+                            
+                            <!-- Tabs for organized results -->
+                            <ul class="nav nav-tabs" id="resultsTab" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab">Dados Básicos</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="address-tab" data-bs-toggle="tab" data-bs-target="#address" type="button" role="tab">Endereço</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="members-tab" data-bs-toggle="tab" data-bs-target="#members" type="button" role="tab">Sócios/Administradores</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities" type="button" role="tab">Atividades</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="registrations-tab" data-bs-toggle="tab" data-bs-target="#registrations" type="button" role="tab">Inscrições</button>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content" id="resultsTabContent">
+                                <div class="tab-pane fade show active" id="basic" role="tabpanel">
+                                    <div id="basicContent"></div>
+                                </div>
+                                <div class="tab-pane fade" id="address" role="tabpanel">
+                                    <div id="addressContent"></div>
+                                </div>
+                                <div class="tab-pane fade" id="members" role="tabpanel">
+                                    <div id="membersContent"></div>
+                                </div>
+                                <div class="tab-pane fade" id="activities" role="tabpanel">
+                                    <div id="activitiesContent"></div>
+                                </div>
+                                <div class="tab-pane fade" id="registrations" role="tabpanel">
+                                    <div id="registrationsContent"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error Message -->
+                        <div id="errorAlert" class="alert alert-danger mt-3" style="display: none;" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <span id="errorMessage"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Information -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Informações sobre a API CNPJA</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>A API Pública CNPJA permite consultar informações de empresas brasileiras de forma gratuita e sem necessidade de cadastro.</p>
+                        <ul>
+                            <li><strong>Limite:</strong> 5 consultas por minuto por IP</li>
+                            <li><strong>Atualização:</strong> Dados atualizados a cada 45 dias para empresas ativas</li>
+                            <li><strong>Fontes:</strong> Receita Federal, Simples Nacional, Cadastro de Contribuintes, SUFRAMA</li>
+                            <li><strong>Formato:</strong> JSON</li>
+                        </ul>
+                        <div class="alert alert-warning">
+                            <small>
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>Atenção:</strong> Os dados podem apresentar defasagem em relação à fonte original. 
+                                Para dados em tempo real e funcionalidades adicionais, considere a API Comercial.
+                            </small>
+                        </div>
+                        <p>Para mais informações, visite: <a href="https://open.cnpja.com" target="_blank">open.cnpja.com</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const cnpjForm = document.getElementById('cnpjForm');
+            const cnpjInput = document.getElementById('cnpjInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorAlert = document.getElementById('errorAlert');
+            const errorMessage = document.getElementById('errorMessage');
+            const apiStatus = document.getElementById('apiStatus');
+
+            // Content containers for tabs
+            const basicContent = document.getElementById('basicContent');
+            const addressContent = document.getElementById('addressContent');
+            const membersContent = document.getElementById('membersContent');
+            const activitiesContent = document.getElementById('activitiesContent');
+            const registrationsContent = document.getElementById('registrationsContent');
+
+            // Monitoramento da API
+            let apiCheckInterval;
+            
+            // Função para verificar o status da API
+            function checkApiStatus() {
+                // Teste com um CNPJ conhecido
+                fetch('https://open.cnpja.com/office/07526557011659')
+                    .then(response => {
+                        if (response.ok) {
+                            apiStatus.className = 'alert alert-success d-flex align-items-center';
+                            apiStatus.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i><span>API Online</span>';
+                        } else {
+                            throw new Error('API não respondeu corretamente');
+                        }
+                    })
+                    .catch(error => {
+                        apiStatus.className = 'alert alert-danger d-flex align-items-center';
+                        apiStatus.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i><span>API Offline</span>';
+                        console.error('Erro ao verificar status da API:', error);
+                    });
+            }
+
+            // Iniciar monitoramento da API
+            checkApiStatus();
+            apiCheckInterval = setInterval(checkApiStatus, 60000); // Verificar a cada minuto
+
+            // Validação do CNPJ
+            function validateCNPJ(cnpj) {
+                // Remove qualquer caractere não numérico
+                cnpj = cnpj.replace(/\D/g, '');
+                
+                // Verifica se tem 14 dígitos
+                if (cnpj.length !== 14) {
+                    return false;
+                }
+                
+                // Verifica se são apenas números
+                if (!/^\d+$/.test(cnpj)) {
+                    return false;
+                }
+                
+                return true;
+            }
+
+            // Formata o CNPJ para exibição
+            function formatCNPJ(cnpj) {
+                return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+            }
+
+            // Consulta o CNPJ na API
+            function consultarCNPJ(cnpj) {
+                // Mostra o loading
+                loading.style.display = 'block';
+                results.style.display = 'none';
+                errorAlert.style.display = 'none';
+                
+                // Faz a requisição
+                fetch(`https://open.cnpja.com/office/${cnpj}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            if (response.status === 404) {
+                                throw new Error('CNPJ não encontrado na base de dados.');
+                            } else if (response.status === 429) {
+                                throw new Error('Limite de consultas excedido. Aguarde 1 minuto.');
+                            } else {
+                                throw new Error('Erro na resposta da API.');
+                            }
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        displayResults(data);
+                    })
+                    .catch(error => {
+                        console.error('Erro ao consultar CNPJ:', error);
+                        showError(error.message || 'Erro ao consultar CNPJ. Verifique sua conexão ou tente novamente mais tarde.');
+                    })
+                    .finally(() => {
+                        // Esconde o loading
+                        loading.style.display = 'none';
+                    });
+            }
+
+            // Exibe os resultados da consulta
+            function displayResults(data) {
+                // Dados Básicos
+                basicContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="result-item">
+                                <strong>CNPJ:</strong> ${formatCNPJ(data.taxId)}
+                            </div>
+                            <div class="result-item">
+                                <strong>Nome:</strong> ${data.company.name}
+                            </div>
+                            <div class="result-item">
+                                <strong>Nome Fantasia:</strong> ${data.alias || 'Não informado'}
+                            </div>
+                            <div class="result-item">
+                                <strong>Data de Abertura:</strong> ${new Date(data.founded).toLocaleDateString('pt-BR')}
+                            </div>
+                            <div class="result-item">
+                                <strong>Situação:</strong> 
+                                <span class="badge ${data.status.id === 2 ? 'bg-success' : 'bg-warning'} badge-status">
+                                    ${data.status.text}
+                                </span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Data da Situação:</strong> ${new Date(data.statusDate).toLocaleDateString('pt-BR')}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="result-item">
+                                <strong>Natureza Jurídica:</strong> ${data.company.nature.text}
+                            </div>
+                            <div class="result-item">
+                                <strong>Porte:</strong> ${data.company.size.text}
+                            </div>
+                            <div class="result-item">
+                                <strong>Capital Social:</strong> R$ ${data.company.equity ? data.company.equity.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : 'Não informado'}
+                            </div>
+                            <div class="result-item">
+                                <strong>Simples Nacional:</strong> 
+                                <span class="badge ${data.company.simples.optant ? 'bg-success' : 'bg-secondary'} badge-status">
+                                    ${data.company.simples.optant ? 'Optante' : 'Não Optante'}
+                                </span>
+                            </div>
+                            ${data.company.simples.since ? `
+                            <div class="result-item">
+                                <strong>Data de Opção:</strong> ${new Date(data.company.simples.since).toLocaleDateString('pt-BR')}
+                            </div>
+                            ` : ''}
+                            <div class="result-item">
+                                <strong>Última Atualização:</strong> ${new Date(data.updated).toLocaleString('pt-BR')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Endereço
+                addressContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="result-item">
+                                <strong>Logradouro:</strong> ${data.address.street}
+                            </div>
+                            <div class="result-item">
+                                <strong>Número:</strong> ${data.address.number}
+                            </div>
+                            <div class="result-item">
+                                <strong>Complemento:</strong> ${data.address.details || 'Não informado'}
+                            </div>
+                            <div class="result-item">
+                                <strong>Bairro:</strong> ${data.address.district}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="result-item">
+                                <strong>Cidade:</strong> ${data.address.city}
+                            </div>
+                            <div class="result-item">
+                                <strong>UF:</strong> ${data.address.state}
+                            </div>
+                            <div class="result-item">
+                                <strong>CEP:</strong> ${data.address.zip}
+                            </div>
+                            <div class="result-item">
+                                <strong>País:</strong> ${data.address.country.name}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Sócios/Administradores
+                if (data.company.members && data.company.members.length > 0) {
+                    let membersHTML = '<div class="row">';
+                    data.company.members.forEach(member => {
+                        membersHTML += `
+                            <div class="col-md-6 mb-3">
+                                <div class="member-card">
+                                    <h6 class="mb-2">${member.person.name}</h6>
+                                    <div class="small">
+                                        <div><strong>Cargo:</strong> ${member.role.text}</div>
+                                        <div><strong>Desde:</strong> ${new Date(member.since).toLocaleDateString('pt-BR')}</div>
+                                        <div><strong>Faixa Etária:</strong> ${member.person.age}</div>
+                                        <div><strong>Tipo:</strong> ${member.person.type === 'NATURAL' ? 'Pessoa Física' : 'Pessoa Jurídica'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    membersHTML += '</div>';
+                    membersContent.innerHTML = membersHTML;
+                } else {
+                    membersContent.innerHTML = '<p class="text-muted">Nenhum sócio ou administrador encontrado.</p>';
+                }
+
+                // Atividades Econômicas
+                let activitiesHTML = `
+                    <div class="result-section">
+                        <h6 class="mb-3">Atividade Principal</h6>
+                        <div class="ps-3">
+                            <div><strong>Código:</strong> ${data.mainActivity.id}</div>
+                            <div><strong>Descrição:</strong> ${data.mainActivity.text}</div>
+                        </div>
+                    </div>
+                `;
+
+                if (data.sideActivities && data.sideActivities.length > 0) {
+                    activitiesHTML += `
+                        <div class="result-section">
+                            <h6 class="mb-3">Atividades Secundárias</h6>
+                            <div class="ps-3">
+                    `;
+                    data.sideActivities.forEach(activity => {
+                        activitiesHTML += `
+                            <div class="mb-2">
+                                <div><strong>Código:</strong> ${activity.id}</div>
+                                <div><strong>Descrição:</strong> ${activity.text}</div>
+                            </div>
+                            <hr>
+                        `;
+                    });
+                    activitiesHTML += '</div></div>';
+                }
+                activitiesContent.innerHTML = activitiesHTML;
+
+                // Inscrições Estaduais e SUFRAMA
+                let registrationsHTML = '';
+                
+                // Inscrições Estaduais
+                if (data.registrations && data.registrations.length > 0) {
+                    registrationsHTML += `
+                        <div class="result-section">
+                            <h6 class="mb-3">Inscrições Estaduais</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Número</th>
+                                            <th>UF</th>
+                                            <th>Situação</th>
+                                            <th>Tipo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+                    data.registrations.forEach(reg => {
+                        registrationsHTML += `
+                            <tr>
+                                <td>${reg.number}</td>
+                                <td>${reg.state}</td>
+                                <td>
+                                    <span class="badge ${reg.status.id === 1 ? 'bg-success' : 'bg-warning'} badge-status">
+                                        ${reg.status.text}
+                                    </span>
+                                </td>
+                                <td>${reg.type.text}</td>
+                            </tr>
+                        `;
+                    });
+                    registrationsHTML += '</tbody></table></div></div>';
+                }
+
+                // SUFRAMA
+                if (data.suframa && data.suframa.length > 0) {
+                    registrationsHTML += `
+                        <div class="result-section">
+                            <h6 class="mb-3">SUFRAMA</h6>
+                    `;
+                    data.suframa.forEach(suf => {
+                        registrationsHTML += `
+                            <div class="mb-3">
+                                <div><strong>Número:</strong> ${suf.number}</div>
+                                <div><strong>Situação:</strong> 
+                                    <span class="badge ${suf.status.id === 1 ? 'bg-success' : 'bg-warning'} badge-status">
+                                        ${suf.status.text}
+                                    </span>
+                                </div>
+                                <div><strong>Data de Aprovação:</strong> ${new Date(suf.approvalDate).toLocaleDateString('pt-BR')}</div>
+                                
+                                <div class="mt-2">
+                                    <strong>Incentivos Fiscais:</strong>
+                                    <ul class="mt-2">
+                        `;
+                        suf.incentives.forEach(inc => {
+                            registrationsHTML += `
+                                <li>
+                                    <strong>${inc.tribute}:</strong> ${inc.benefit} - ${inc.purpose}
+                                    <br><small class="text-muted">Base: ${inc.basis}</small>
+                                </li>
+                            `;
+                        });
+                        registrationsHTML += '</ul></div></div>';
+                    });
+                    registrationsHTML += '</div>';
+                }
+
+                if (!registrationsHTML) {
+                    registrationsHTML = '<p class="text-muted">Nenhuma inscrição estadual ou SUFRAMA encontrada.</p>';
+                }
+                registrationsContent.innerHTML = registrationsHTML;
+
+                // Mostra os resultados
+                results.style.display = 'block';
+            }
+
+            // Exibe mensagem de erro
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorAlert.style.display = 'block';
+            }
+
+            // Event listener para o formulário
+            cnpjForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const cnpj = cnpjInput.value.trim();
+                
+                // Valida o CNPJ
+                if (!validateCNPJ(cnpj)) {
+                    showError('CNPJ inválido. Digite um CNPJ com 14 dígitos numéricos.');
+                    return;
+                }
+                
+                // Consulta o CNPJ
+                consultarCNPJ(cnpj);
+            });
+
+            // Formatação automática do CNPJ (opcional)
+            cnpjInput.addEventListener('input', function() {
+                // Remove qualquer caractere não numérico
+                this.value = this.value.replace(/\D/g, '');
+                
+                // Limita a 14 caracteres
+                if (this.value.length > 14) {
+                    this.value = this.value.substring(0, 14);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
